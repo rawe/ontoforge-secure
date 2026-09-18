@@ -1,0 +1,13 @@
+{
+  "name": "ontoforge-secure",
+  "description": "Claude Code plugins for OntoForge behind an auth gateway that requires a Bearer token on every API call.",
+  "owner": {
+    "name": "rawe"
+  },
+  "plugins": [
+    {
+      "name": "ontoforge-secure-sync",
+      "source": "./plugins/ontoforge-secure-sync"
+    }
+  ]
+}

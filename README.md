@@ -33,6 +33,7 @@ Ingress (TLS)
 | `scripts/` | Password hash, token generator, smoke test |
 | `mcp.example.json` | MCP client configuration for Claude Code, pointing at the API facade |
 | `k8s/` | Kubernetes reference manifests |
+| `.claude-plugin/`, `plugins/` | Claude Code plugin marketplace, see below |
 | `docs/` | Documentation, see below |
 
 ## Getting started
@@ -78,6 +79,16 @@ the `poc` ontology the file points at. The runtime server additionally needs
 a lens named `all` in that ontology. Ontology, lens and host are overridable
 with `ONTOFORGE_ONTOLOGY`, `ONTOFORGE_LENS` and `ONTOFORGE_API_URL`; against
 a real deployment set the URL to the public API host.
+
+## Claude Code plugin marketplace
+
+This repository is also a Claude Code plugin marketplace. Its plugins let
+Claude work with an OntoForge behind a gateway like this one, where every API
+call needs the Bearer token. Add it once, then choose plugins in `/plugin`:
+
+```text
+/plugin marketplace add rawe/ontoforge-secure
+```
 
 ## Documentation
 

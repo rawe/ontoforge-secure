@@ -1,0 +1,8 @@
+{
+  "name": "ontoforge-secure-sync",
+  "version": "0.1.0",
+  "description": "Export and import OntoForge ontologies (schema, data, or both) as JSON files through a token-protected auth gateway.",
+  "author": {
+    "name": "rawe"
+  }
+}
