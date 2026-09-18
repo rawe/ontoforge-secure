@@ -64,12 +64,14 @@ Run `scripts/smoke-test.sh` for a quick check that both facades work
 
 `mcp.example.json` configures Claude Code with OntoForge's two MCP servers
 through the API facade. The token is read from the environment, so the file
-holds no secret.
+holds no secret. Take it straight from `.env` for the one command:
 
 ```bash
-export ONTOFORGE_API_TOKEN=local-testing-token-replace-me
-claude --mcp-config mcp.example.json
+ONTOFORGE_API_TOKEN=$(grep ^ONTOFORGE_API_TOKEN= .env | cut -d= -f2-) claude --mcp-config mcp.example.json
 ```
+
+Against a real deployment, read the token from your secret manager the same
+way instead of `.env`.
 
 Then ask Claude to call `ensure_ontology` on the modeling server; that creates
 the `poc` ontology the file points at. The runtime server additionally needs
