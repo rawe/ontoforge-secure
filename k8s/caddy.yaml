@@ -1,0 +1,106 @@
+# Caddy auth gateway — the ONLY publicly reachable component.
+#
+# TLS: this reference lets Caddy obtain public certificates itself
+# (CADDY_TLS_MODE=acme) via a Service of type LoadBalancer, which needs
+# ports 80/443 reachable from the internet for the ACME HTTP/TLS-ALPN
+# challenge and DNS for both hosts pointing at the LB.
+#
+# If an Ingress controller already terminates TLS in the cluster, set
+# CADDY_TLS_MODE=off, use http:// values for FRONTEND_HOST / API_HOST,
+# switch the Service to ClusterIP and add an Ingress with both hosts routed
+# to this Service on port 80 (see docs/CONTEXT.md, "TLS options").
+apiVersion: v1
+kind: Service
+metadata:
+  name: caddy
+spec:
+  type: LoadBalancer
+  selector:
+    app: caddy
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: https
+      port: 443
+      targetPort: 443
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: caddy-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caddy
+spec:
+  # Certificate storage is a RWO volume; keep a single replica unless you
+  # move Caddy's storage to a shared backend (e.g. the redis/consul plugins).
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: caddy
+  template:
+    metadata:
+      labels:
+        app: caddy
+    spec:
+      containers:
+        - name: caddy
+          image: caddy:2.11
+          ports:
+            - name: http
+              containerPort: 80
+            - name: https
+              containerPort: 443
+            - name: health
+              containerPort: 8080
+          env:
+            - name: FRONTEND_HOST
+              value: https://ontoforge.example.com
+            - name: API_HOST
+              value: https://api.ontoforge.example.com
+            - name: CADDY_TLS_MODE
+              value: acme
+            - name: ACME_EMAIL
+              value: devops@example.com
+            - name: SERVER_UPSTREAM
+              value: ontoforge-server:8000
+            - name: UI_UPSTREAM
+              value: ontoforge-ui:80
+          envFrom:
+            # BASIC_AUTH_USER, BASIC_AUTH_HASH, ONTOFORGE_API_TOKEN
+            - secretRef:
+                name: caddy-auth
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+              readOnly: true
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 30
+      volumes:
+        - name: caddyfile
+          configMap:
+            name: caddy-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: caddy-data

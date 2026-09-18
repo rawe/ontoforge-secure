@@ -1,0 +1,6 @@
+# Secrets and private provider configuration
+.env
+env/*.local.env
+# Exported local CA certificate (created by scripts/smoke-test.sh)
+.certs/
+.DS_Store

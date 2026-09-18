@@ -1,0 +1,60 @@
+# Minimal in-cluster PostgreSQL (pgvector) for the reference setup.
+# A managed database is the better choice in production — then drop this
+# file and point DB_URI on the server at the managed instance.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:0.8.6-pg18-trixie
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: ontoforge
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ontoforge-db
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            # PG 18+ images declare the volume at /var/lib/postgresql (not …/data).
+            - name: data
+              mountPath: /var/lib/postgresql
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "ontoforge"]
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

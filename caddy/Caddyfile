@@ -1,0 +1,123 @@
+# OntoForge — Caddy Auth Gateway
+#
+# Two public facades, one gateway. Nothing behind Caddy carries any auth
+# logic; OntoForge's UI and server images run unchanged.
+#
+#   {$FRONTEND_HOST}  HTTP Basic Auth  ->  /        -> ontoforge-ui:80
+#                                         /api/*   -> ontoforge-server:8000
+#                                         /mcp/*   -> 404 (never published here)
+#   {$API_HOST}       Bearer token     ->  /*       -> ontoforge-server:8000
+#   :8080 (internal)  no auth          ->  /healthz -> 200  (K8s probes)
+#
+# Every {$VAR} is read from the container environment when Caddy starts.
+# Secrets (BASIC_AUTH_HASH, ONTOFORGE_API_TOKEN) come from a Kubernetes
+# Secret / a local .env — never from this file.
+{
+	# No runtime reconfiguration: the admin API stays off.
+	admin off
+	# Only used when CADDY_TLS_MODE=acme (Let's Encrypt account contact).
+	email {$ACME_EMAIL:admin@example.com}
+}
+
+# ---------------------------------------------------------------------------
+# TLS modes, selected with CADDY_TLS_MODE:
+#   internal  Caddy's own local CA (default; local PoC / cluster-internal)
+#   acme      public certificate via ACME (Caddy is the public entry point)
+#   off       plain HTTP; an Ingress / LB in front of Caddy terminates TLS
+#             (then FRONTEND_HOST / API_HOST must be http://... addresses)
+# ---------------------------------------------------------------------------
+(tls_internal) {
+	tls internal
+}
+
+(tls_acme) {
+	tls {
+		issuer acme
+	}
+}
+
+(tls_off) {
+}
+
+# Headers the SPA / API never need from the backend, and that would make a
+# Basic-Auth-protected origin CORS-open with credentials. The SPA is
+# same-origin behind this gateway, so CORS is not required at all.
+(strip_cors) {
+	header_down -Access-Control-Allow-Origin
+	header_down -Access-Control-Allow-Credentials
+}
+
+# ===========================================================================
+# 1. Frontend facade — HTTP Basic Auth
+# ===========================================================================
+{$FRONTEND_HOST:https://ontoforge.example.com} {
+	import tls_{$CADDY_TLS_MODE:internal}
+
+	log {
+		output stdout
+		format console
+	}
+
+	# The browser shows its native login dialog; after that it re-sends the
+	# credentials on every request to this host, including the SPA's
+	# relative /api/... calls. The password is stored as a bcrypt hash only.
+	basic_auth * bcrypt "OntoForge" {
+		{$BASIC_AUTH_USER:admin} {$BASIC_AUTH_HASH}
+	}
+
+	# The UI image's nginx would happily forward /mcp/ to the server, so the
+	# gateway has to refuse it explicitly before the catch-all below.
+	handle /mcp/* {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy {$SERVER_UPSTREAM:ontoforge-server:8000} {
+			# The backend has no auth; do not leak the browser's credentials.
+			header_up -Authorization
+			import strip_cors
+		}
+	}
+
+	handle {
+		reverse_proxy {$UI_UPSTREAM:ontoforge-ui:80} {
+			header_up -Authorization
+		}
+	}
+}
+
+# ===========================================================================
+# 2. Backend facade — static Bearer token
+# ===========================================================================
+{$API_HOST:https://api.ontoforge.example.com} {
+	import tls_{$CADDY_TLS_MODE:internal}
+
+	log {
+		output stdout
+		format console
+	}
+
+	# Exact match on the whole header value. The token is injected from the
+	# environment; compose / the K8s Deployment refuse to start without it.
+	@authorized header Authorization "Bearer {$ONTOFORGE_API_TOKEN}"
+
+	handle @authorized {
+		reverse_proxy {$SERVER_UPSTREAM:ontoforge-server:8000} {
+			header_up -Authorization
+		}
+	}
+
+	# Everything else: 401 with the challenge, nothing is proxied.
+	handle {
+		header WWW-Authenticate `Bearer realm="OntoForge API"`
+		respond 401
+	}
+}
+
+# ===========================================================================
+# 3. Internal health listener — not published, for readiness/liveness probes
+# ===========================================================================
+:8080 {
+	respond /healthz 200
+	respond 404
+}

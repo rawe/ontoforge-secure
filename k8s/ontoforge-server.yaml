@@ -1,0 +1,57 @@
+# OntoForge server — ClusterIP ONLY. No Ingress, no LoadBalancer, no NodePort:
+# anything else would bypass the gateway's authentication.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ontoforge-server
+spec:
+  type: ClusterIP
+  selector:
+    app: ontoforge-server
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ontoforge-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ontoforge-server
+  template:
+    metadata:
+      labels:
+        app: ontoforge-server
+    spec:
+      containers:
+        - name: server
+          image: ghcr.io/rawe/ontoforge-server:5.0.0
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: ontoforge-server-env
+                optional: true
+          env:
+            - name: DB_BACKEND
+              value: postgres
+            - name: DB_URI
+              value: postgresql://postgres:5432/ontoforge
+            - name: DB_USER
+              value: postgres
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ontoforge-db
+                  key: POSTGRES_PASSWORD
+            # Advertised in agent cards (A2A): the public API facade, never the UI host.
+            - name: PUBLIC_URL
+              value: https://api.ontoforge.example.com
+          readinessProbe:
+            httpGet:
+              path: /api/ontologies
+              port: 8000
+            periodSeconds: 10

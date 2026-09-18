@@ -1,0 +1,42 @@
+# OntoForge UI (nginx + SPA) — ClusterIP ONLY, served through Caddy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ontoforge-ui
+spec:
+  type: ClusterIP
+  selector:
+    app: ontoforge-ui
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ontoforge-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ontoforge-ui
+  template:
+    metadata:
+      labels:
+        app: ontoforge-ui
+    spec:
+      containers:
+        - name: ui
+          image: ghcr.io/rawe/ontoforge-ui:5.0.0
+          ports:
+            - containerPort: 80
+          env:
+            # nginx inside the image proxies /api and /mcp here. Caddy routes
+            # /api itself and refuses /mcp, so this only serves as a fallback.
+            - name: BACKEND_URL
+              value: http://ontoforge-server:8000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 10

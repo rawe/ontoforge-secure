@@ -1,0 +1,121 @@
+# OntoForge behind a Caddy auth gateway — local proof of concept.
+#
+# Only the `caddy` service publishes ports. OntoForge's UI and server run on
+# an internal network exactly as they would as ClusterIP services in
+# Kubernetes: no auth of their own, unreachable from outside.
+#
+#   https://ontoforge.localhost      Basic Auth  -> UI + /api/*
+#   https://api.ontoforge.localhost  Bearer      -> server (REST + MCP)
+#
+# Stack configuration: .env (copy .env.example). OntoForge feature settings:
+# env/ontoforge.env (+ env/ontoforge.local.env for private values).
+
+services:
+  caddy:
+    image: caddy:2.11
+    container_name: ontoforge-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      FRONTEND_HOST: ${FRONTEND_HOST:-https://ontoforge.localhost}
+      API_HOST: ${API_HOST:-https://api.ontoforge.localhost}
+      CADDY_TLS_MODE: ${CADDY_TLS_MODE:-internal}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-admin}
+      # bcrypt hash produced by scripts/hash-password.sh — never a plaintext password.
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?set BASIC_AUTH_HASH in .env (see scripts/hash-password.sh)}
+      # Static token for the API facade — see scripts/gen-token.sh.
+      ONTOFORGE_API_TOKEN: ${ONTOFORGE_API_TOKEN:?set ONTOFORGE_API_TOKEN in .env (see scripts/gen-token.sh)}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates, the local CA and ACME state survive restarts.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - edge
+      - internal
+    depends_on:
+      - ontoforge-ui
+      - ontoforge-server
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg18-trixie
+    container_name: ontoforge-secure-postgres
+    restart: unless-stopped
+    # No `ports:` — reachable only from the internal network.
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ontoforge
+    volumes:
+      # PG 18+ images declare the volume at /var/lib/postgresql (not …/data).
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ontoforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ontoforge-server:
+    image: ghcr.io/rawe/ontoforge-server:${VERSION:-latest}
+    container_name: ontoforge-secure-server
+    restart: unless-stopped
+    # No `ports:` — this is the ClusterIP-only service. Caddy is the only way in.
+    # Feature settings (embeddings, AI, documents) come from env/:
+    #   env/ontoforge.env        committed defaults, works as-is
+    #   env/ontoforge.local.env  optional, git-ignored, your provider keys (wins)
+    # Database wiring and PUBLIC_URL are owned by compose (below) and override both files.
+    env_file:
+      - path: env/ontoforge.env
+        required: true
+      - path: env/ontoforge.local.env
+        required: false
+    environment:
+      DB_BACKEND: postgres
+      DB_URI: postgresql://postgres:5432/ontoforge
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      # Advertised in agent cards (A2A): the public API facade.
+      PUBLIC_URL: ${API_HOST:-https://api.ontoforge.localhost}
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ontoforge-ui:
+    image: ghcr.io/rawe/ontoforge-ui:${VERSION:-latest}
+    container_name: ontoforge-secure-ui
+    restart: unless-stopped
+    # No `ports:` — served only through Caddy.
+    environment:
+      # The UI image's nginx proxies /api and /mcp here. Behind the gateway
+      # /api is routed by Caddy directly and /mcp is refused by Caddy, so
+      # this only matters for requests that reach nginx at all.
+      BACKEND_URL: http://ontoforge-server:8000
+    networks:
+      - internal
+    depends_on:
+      - ontoforge-server
+
+networks:
+  # Public side: only Caddy is attached.
+  edge:
+  # Private side: OntoForge + database. Mirrors ClusterIP-only reachability.
+  internal:
+    internal: true
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
