@@ -4,7 +4,7 @@ Three places, each with one job:
 
 | File | Job | In git |
 |---|---|---|
-| `.env` | The compose stack: hosts, TLS mode, gateway credentials, image version, database password | no, copy from `.env.example` |
+| `.env` | The compose stack: hosts, gateway credentials, image version, database password | no, copy from `.env.example` |
 | `env/ontoforge.env` | OntoForge feature settings: embeddings, AI, documents. Works as-is with the features off | yes |
 | `env/ontoforge.local.env` | Your private values for the same settings: provider URLs, API keys. Read after `ontoforge.env`, same keys win | no, optional |
 
@@ -31,10 +31,8 @@ docker compose exec ontoforge-server printenv | sort
 |---|---|---|
 | `VERSION` | `latest` | Tag of both OntoForge images |
 | `POSTGRES_PASSWORD` | `changeme` | Database password, used by PostgreSQL and the server |
-| `FRONTEND_HOST` | `https://ontoforge.localhost` | Public address of the UI facade |
-| `API_HOST` | `https://api.ontoforge.localhost` | Public address of the API facade |
-| `CADDY_TLS_MODE` | `internal` | `internal`, `acme` or `off`, see [gateway.md](gateway.md#tls) |
-| `ACME_EMAIL` | `admin@example.com` | ACME contact, `acme` mode only |
+| `FRONTEND_HOST` | `ontoforge.localhost` | Hostname of the UI facade |
+| `API_HOST` | `api.ontoforge.localhost` | Hostname of the API facade |
 | `BASIC_AUTH_USER` | `admin` | Basic Auth user |
 | `BASIC_AUTH_HASH` | hash of `ontoforge` | bcrypt hash of the Basic Auth password |
 | `ONTOFORGE_API_TOKEN` | `local-testing-token-replace-me` | Bearer token for the API facade |
@@ -63,9 +61,9 @@ new token to every API client.
 
 ### Changing the hosts
 
-Set `FRONTEND_HOST` and `API_HOST` with scheme. With `CADDY_TLS_MODE=off`
-they must be `http://` addresses. Browsers resolve any `*.localhost` name to
-`127.0.0.1` without any DNS or hosts-file entry.
+Set `FRONTEND_HOST` and `API_HOST` to bare hostnames, no scheme: Caddy
+serves plain HTTP and routes by the `Host` header. Browsers resolve any
+`*.localhost` name to `127.0.0.1` without any DNS or hosts-file entry.
 
 ## `env/ontoforge.env` and `env/ontoforge.local.env`
 
@@ -84,8 +82,8 @@ Ollama on the host machine is reached from the containers as
 `http://host.docker.internal:11434`.
 
 `PUBLIC_URL`, the address OntoForge advertises in agent cards (A2A), is not a
-feature setting: compose sets it to `API_HOST`, so agents are always pointed
-at the Bearer-protected API facade.
+feature setting: compose sets it to `http://` plus `API_HOST`, so agents are
+always pointed at the Bearer-protected API facade.
 
 After changing either file: `docker compose up -d ontoforge-server`.
 

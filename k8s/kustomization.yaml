@@ -13,6 +13,7 @@ resources:
   - ontoforge-server.yaml
   - ontoforge-ui.yaml
   - caddy.yaml
+  - ingress.yaml
   - networkpolicy.yaml
 
 configMapGenerator:

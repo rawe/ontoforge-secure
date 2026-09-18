@@ -1,46 +1,35 @@
 # OntoForge — Caddy Auth Gateway
 #
-# Two public facades, one gateway. Nothing behind Caddy carries any auth
-# logic; OntoForge's UI and server images run unchanged.
+# Caddy does NOT terminate TLS. It speaks plain HTTP on :80 and expects a
+# TLS-terminating layer in front of it (a Kubernetes Ingress in production;
+# nothing in the local compose setup). That layer must pass the request's
+# original Host header through unchanged: Caddy picks the facade by hostname.
 #
-#   {$FRONTEND_HOST}  HTTP Basic Auth  ->  /        -> ontoforge-ui:80
-#                                         /api/*   -> ontoforge-server:8000
-#                                         /mcp/*   -> 404 (never published here)
-#   {$API_HOST}       Bearer token     ->  /*       -> ontoforge-server:8000
-#   :8080 (internal)  no auth          ->  /healthz -> 200  (K8s probes)
+#   http://{$FRONTEND_HOST}  HTTP Basic Auth  ->  /        -> ontoforge-ui:80
+#                                              /api/*   -> ontoforge-server:8000
+#                                              /mcp/*   -> 404 (never published here)
+#   http://{$API_HOST}       Bearer token     ->  /*       -> ontoforge-server:8000
+#   :80 any other Host       ->  404
+#   :8080 (internal)         ->  /healthz -> 200, no auth (probes)
 #
-# Every {$VAR} is read from the container environment when Caddy starts.
-# Secrets (BASIC_AUTH_HASH, ONTOFORGE_API_TOKEN) come from a Kubernetes
-# Secret / a local .env — never from this file.
+# Every {$VAR} is read from the container environment at start. Secrets
+# (BASIC_AUTH_HASH, ONTOFORGE_API_TOKEN) come from a Kubernetes Secret or the
+# local .env — never from this file.
+
 {
-	# No runtime reconfiguration: the admin API stays off.
-	admin off
-	# Only used when CADDY_TLS_MODE=acme (Let's Encrypt account contact).
-	email {$ACME_EMAIL:admin@example.com}
-}
-
-# ---------------------------------------------------------------------------
-# TLS modes, selected with CADDY_TLS_MODE:
-#   internal  Caddy's own local CA (default; local PoC / cluster-internal)
-#   acme      public certificate via ACME (Caddy is the public entry point)
-#   off       plain HTTP; an Ingress / LB in front of Caddy terminates TLS
-#             (then FRONTEND_HOST / API_HOST must be http://... addresses)
-# ---------------------------------------------------------------------------
-(tls_internal) {
-	tls internal
-}
-
-(tls_acme) {
-	tls {
-		issuer acme
+	# No certificates, no redirects: TLS is someone else's job.
+	auto_https off
+	# Trust X-Forwarded-* headers from the layer in front (private cluster
+	# and Docker addresses), so the original scheme and client IP survive.
+	servers {
+		trusted_proxies static private_ranges
 	}
+	# No runtime reconfiguration.
+	admin off
 }
 
-(tls_off) {
-}
-
-# Headers the SPA / API never need from the backend, and that would make a
-# Basic-Auth-protected origin CORS-open with credentials. The SPA is
+# Headers the UI never needs from the backend, and that would make a
+# Basic-Auth-protected origin CORS-open with credentials. The UI is
 # same-origin behind this gateway, so CORS is not required at all.
 (strip_cors) {
 	header_down -Access-Control-Allow-Origin
@@ -50,9 +39,7 @@
 # ===========================================================================
 # 1. Frontend facade — HTTP Basic Auth
 # ===========================================================================
-{$FRONTEND_HOST:https://ontoforge.example.com} {
-	import tls_{$CADDY_TLS_MODE:internal}
-
+http://{$FRONTEND_HOST:ontoforge.example.com} {
 	log {
 		output stdout
 		format console
@@ -89,9 +76,7 @@
 # ===========================================================================
 # 2. Backend facade — static Bearer token
 # ===========================================================================
-{$API_HOST:https://api.ontoforge.example.com} {
-	import tls_{$CADDY_TLS_MODE:internal}
-
+http://{$API_HOST:api.ontoforge.example.com} {
 	log {
 		output stdout
 		format console
@@ -115,7 +100,15 @@
 }
 
 # ===========================================================================
-# 3. Internal health listener — not published, for readiness/liveness probes
+# 3. Any other Host header — refuse. Makes a missing Host pass-through in
+#    the layer in front visible immediately instead of silently misrouting.
+# ===========================================================================
+http:// {
+	respond 404
+}
+
+# ===========================================================================
+# 4. Internal health listener — not published, for readiness/liveness probes
 # ===========================================================================
 :8080 {
 	respond /healthz 200

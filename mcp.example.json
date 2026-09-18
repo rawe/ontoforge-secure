@@ -2,14 +2,14 @@
   "mcpServers": {
     "ontoforge-modeling": {
       "type": "http",
-      "url": "${ONTOFORGE_API_URL:-https://api.ontoforge.localhost}/mcp/ontologies/${ONTOFORGE_ONTOLOGY:-poc}/model",
+      "url": "${ONTOFORGE_API_URL:-http://api.ontoforge.localhost}/mcp/ontologies/${ONTOFORGE_ONTOLOGY:-poc}/model",
       "headers": {
         "Authorization": "Bearer ${ONTOFORGE_API_TOKEN}"
       }
     },
     "ontoforge-runtime": {
       "type": "http",
-      "url": "${ONTOFORGE_API_URL:-https://api.ontoforge.localhost}/mcp/ontologies/${ONTOFORGE_ONTOLOGY:-poc}/runtime/lenses/${ONTOFORGE_LENS:-all}",
+      "url": "${ONTOFORGE_API_URL:-http://api.ontoforge.localhost}/mcp/ontologies/${ONTOFORGE_ONTOLOGY:-poc}/runtime/lenses/${ONTOFORGE_LENS:-all}",
       "headers": {
         "Authorization": "Bearer ${ONTOFORGE_API_TOKEN}"
       }

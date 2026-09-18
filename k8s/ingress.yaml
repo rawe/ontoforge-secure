@@ -1,0 +1,45 @@
+# The public entry point. Terminates TLS and forwards both hostnames to Caddy
+# over plain HTTP. This is the only Ingress in the namespace.
+#
+# DevOps checklist:
+#   1. ingressClassName: your controller (nginx, traefik, ...).
+#   2. TLS: use your usual mechanism — the cert-manager annotation below, or
+#      an existing certificate Secret named in `secretName`.
+#   3. The controller must forward the original Host header to Caddy
+#      unchanged (the default for nginx, traefik, HAProxy, cloud LBs).
+#      Caddy selects the facade by hostname and answers 404 for any other.
+#   4. Redirect HTTP to HTTPS at the Ingress; Caddy does not.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ontoforge
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt   # or remove and bring your own Secret
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ontoforge.example.com
+        - api.ontoforge.example.com
+      secretName: ontoforge-tls
+  rules:
+    - host: ontoforge.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: caddy
+                port:
+                  name: http
+    - host: api.ontoforge.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: caddy
+                port:
+                  name: http

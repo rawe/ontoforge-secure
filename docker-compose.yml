@@ -1,11 +1,12 @@
 # OntoForge behind a Caddy auth gateway — local proof of concept.
 #
-# Only the `caddy` service publishes ports. OntoForge's UI and server run on
-# an internal network exactly as they would as ClusterIP services in
+# Only the `caddy` service publishes a port (80, plain HTTP: Caddy never
+# terminates TLS, see caddy/Caddyfile). OntoForge's UI and server run on an
+# internal network exactly as they would as ClusterIP services in
 # Kubernetes: no auth of their own, unreachable from outside.
 #
-#   https://ontoforge.localhost      Basic Auth  -> UI + /api/*
-#   https://api.ontoforge.localhost  Bearer      -> server (REST + MCP)
+#   http://ontoforge.localhost      Basic Auth  -> UI + /api/*
+#   http://api.ontoforge.localhost  Bearer      -> server (REST + MCP)
 #
 # Stack configuration: .env (copy .env.example). OntoForge feature settings:
 # env/ontoforge.env (+ env/ontoforge.local.env for private values).
@@ -17,13 +18,9 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
-      - "443:443/udp"
     environment:
-      FRONTEND_HOST: ${FRONTEND_HOST:-https://ontoforge.localhost}
-      API_HOST: ${API_HOST:-https://api.ontoforge.localhost}
-      CADDY_TLS_MODE: ${CADDY_TLS_MODE:-internal}
-      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+      FRONTEND_HOST: ${FRONTEND_HOST:-ontoforge.localhost}
+      API_HOST: ${API_HOST:-api.ontoforge.localhost}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:-admin}
       # bcrypt hash produced by scripts/hash-password.sh — never a plaintext password.
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?set BASIC_AUTH_HASH in .env (see scripts/hash-password.sh)}
@@ -31,9 +28,6 @@ services:
       ONTOFORGE_API_TOKEN: ${ONTOFORGE_API_TOKEN:?set ONTOFORGE_API_TOKEN in .env (see scripts/gen-token.sh)}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      # Certificates, the local CA and ACME state survive restarts.
-      - caddy-data:/data
-      - caddy-config:/config
     networks:
       - edge
       - internal
@@ -86,7 +80,7 @@ services:
       DB_USER: postgres
       DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       # Advertised in agent cards (A2A): the public API facade.
-      PUBLIC_URL: ${API_HOST:-https://api.ontoforge.localhost}
+      PUBLIC_URL: http://${API_HOST:-api.ontoforge.localhost}
     networks:
       - internal
     depends_on:
@@ -117,5 +111,3 @@ networks:
 
 volumes:
   postgres-data:
-  caddy-data:
-  caddy-config:

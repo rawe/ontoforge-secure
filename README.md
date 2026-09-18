@@ -8,16 +8,17 @@ MCP clients send a Bearer token, and OntoForge itself is never reachable
 directly.
 
 It is a proof of concept. It runs locally with Docker Compose and documents
-how the same setup is deployed to Kubernetes.
+how the same setup is deployed to Kubernetes. Caddy does not terminate TLS:
+in the cluster the Ingress does, locally there is none.
 
 ```text
-Internet
+Ingress (TLS)
   │
-  ├─ https://ontoforge.example.com       HTTP Basic Auth (browser login dialog)
+  ├─ ontoforge.example.com       HTTP Basic Auth (browser login dialog)
   │     /        ─► OntoForge UI
   │     /api/*   ─► OntoForge server
   │
-  └─ https://api.ontoforge.example.com   Bearer token (API and MCP clients)
+  └─ api.ontoforge.example.com   Bearer token (API and MCP clients)
         /*       ─► OntoForge server
 ```
 
@@ -27,7 +28,7 @@ Internet
 |---|---|
 | `docker-compose.yml` | Caddy, OntoForge server, OntoForge UI, PostgreSQL |
 | `caddy/Caddyfile` | The gateway configuration, shared by compose and Kubernetes |
-| `.env.example` | Stack configuration template (hosts, TLS, credentials, version) |
+| `.env.example` | Stack configuration template (hosts, credentials, version) |
 | `env/` | OntoForge feature settings (embeddings, AI) |
 | `scripts/` | Password hash, token generator, smoke test |
 | `mcp.example.json` | MCP client configuration for Claude Code, pointing at the API facade |
@@ -36,7 +37,7 @@ Internet
 
 ## Getting started
 
-Prerequisites: Docker with Compose v2.24 or newer, ports 80 and 443 free.
+Prerequisites: Docker with Compose v2.24 or newer, port 80 free.
 
 ```bash
 cp .env.example .env
@@ -47,11 +48,10 @@ That is a working stack with local testing credentials:
 
 | | URL | Credentials |
 |---|---|---|
-| UI | https://ontoforge.localhost | user `admin`, password `ontoforge` |
-| API | https://api.ontoforge.localhost | header `Authorization: Bearer local-testing-token-replace-me` |
+| UI | http://ontoforge.localhost | user `admin`, password `ontoforge` |
+| API | http://api.ontoforge.localhost | header `Authorization: Bearer local-testing-token-replace-me` |
 
-The browser warns about the certificate once (Caddy signs it with its own
-local CA) and then shows the login dialog.
+The browser shows its login dialog on the first request.
 
 Optional: to enable semantic search and AI features, place your provider
 settings in `env/ontoforge.local.env`. See
@@ -64,13 +64,10 @@ Run `scripts/smoke-test.sh` for a quick check that both facades work
 
 `mcp.example.json` configures Claude Code with OntoForge's two MCP servers
 through the API facade. The token is read from the environment, so the file
-holds no secret. Claude Code runs on Node, which must trust Caddy's local CA
-for the local hosts, hence the second variable.
+holds no secret.
 
 ```bash
-mkdir -p .certs && docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt .certs/caddy-root.crt
 export ONTOFORGE_API_TOKEN=local-testing-token-replace-me
-export NODE_EXTRA_CA_CERTS="$PWD/.certs/caddy-root.crt"
 claude --mcp-config mcp.example.json
 ```
 
@@ -78,8 +75,7 @@ Then ask Claude to call `ensure_ontology` on the modeling server; that creates
 the `poc` ontology the file points at. The runtime server additionally needs
 a lens named `all` in that ontology. Ontology, lens and host are overridable
 with `ONTOFORGE_ONTOLOGY`, `ONTOFORGE_LENS` and `ONTOFORGE_API_URL`; against
-a real deployment drop the CA variable and set the URL to the public API
-host.
+a real deployment set the URL to the public API host.
 
 ## Documentation
 

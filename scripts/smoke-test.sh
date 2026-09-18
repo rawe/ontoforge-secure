@@ -4,8 +4,7 @@
 #   scripts/smoke-test.sh [basic-auth-password]   (default: ontoforge, the .env.example password)
 #
 # Reads BASIC_AUTH_USER, ONTOFORGE_API_TOKEN, FRONTEND_HOST and API_HOST from
-# .env. Exports Caddy's local root CA once (into .certs/) so TLS is verified,
-# not skipped. Every check prints PASS/FAIL; exit code is non-zero on any FAIL.
+# .env. Every check prints PASS/FAIL; exit code is non-zero on any FAIL.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,23 +15,13 @@ envval() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2-; }
 USER="$(envval BASIC_AUTH_USER)"; USER="${USER:-admin}"
 TOKEN="$(envval ONTOFORGE_API_TOKEN)"
 [ -n "$TOKEN" ] || { echo "ONTOFORGE_API_TOKEN missing in .env" >&2; exit 2; }
-FRONT="$(envval FRONTEND_HOST)"; FRONT="${FRONT:-https://ontoforge.localhost}"
-API="$(envval API_HOST)"; API="${API:-https://api.ontoforge.localhost}"
-front_host="${FRONT#*://}"; api_host="${API#*://}"
-scheme="${FRONT%%://*}"
-port=443; [ "$scheme" = http ] && port=80
+FRONT_HOST="$(envval FRONTEND_HOST)"; FRONT_HOST="${FRONT_HOST:-ontoforge.localhost}"
+API_HOST="$(envval API_HOST)"; API_HOST="${API_HOST:-api.ontoforge.localhost}"
+FRONT="http://$FRONT_HOST"; API="http://$API_HOST"
 
-# curl on macOS does not resolve *.localhost — pin both hosts to 127.0.0.1.
+# Pin both hostnames to the local gateway so the test does not depend on DNS.
 CURL=(curl -sS -o /dev/null --max-time 15
-      --resolve "$front_host:$port:127.0.0.1" --resolve "$api_host:$port:127.0.0.1")
-if [ "$scheme" = https ]; then
-  mkdir -p .certs
-  if [ ! -s .certs/caddy-root.crt ]; then
-    docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt .certs/caddy-root.crt >/dev/null 2>&1 \
-      || { echo "could not export Caddy root CA; falling back to -k" >&2; }
-  fi
-  if [ -s .certs/caddy-root.crt ]; then CURL+=(--cacert .certs/caddy-root.crt); else CURL+=(-k); fi
-fi
+      --resolve "$FRONT_HOST:80:127.0.0.1" --resolve "$API_HOST:80:127.0.0.1")
 
 fails=0
 check() { # <expected-status> <label> <curl args...>
@@ -57,6 +46,9 @@ check 401 "GET /api/ontologies wrong token"                -H "Authorization: Be
 check 401 "GET /api/ontologies basic auth is NOT accepted here" -u "$USER:$PASSWORD" "$API/api/ontologies"
 check 200 "GET /api/ontologies with token"                 -H "Authorization: Bearer $TOKEN" "$API/api/ontologies"
 check 200 "GET /docs           with token (OpenAPI UI)"    -H "Authorization: Bearer $TOKEN" "$API/docs"
+
+echo "== Host header routing (the layer in front must pass Host through)"
+check 404 "GET / with an unknown Host header"              -H "Host: unknown.example" "http://127.0.0.1/"
 
 echo "== Isolation"
 for p in 8000 3000 5432; do
