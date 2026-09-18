@@ -37,16 +37,17 @@ check fails.
 
 ```bash
 # Frontend facade: expect 401, then 200
-curl -k --resolve ontoforge.localhost:443:127.0.0.1 -o /dev/null -w '%{http_code}\n' https://ontoforge.localhost/
-curl -k --resolve ontoforge.localhost:443:127.0.0.1 -o /dev/null -w '%{http_code}\n' -u admin:ontoforge https://ontoforge.localhost/api/ontologies
+curl -k -o /dev/null -w '%{http_code}\n' https://ontoforge.localhost/
+curl -k -o /dev/null -w '%{http_code}\n' -u admin:ontoforge https://ontoforge.localhost/api/ontologies
 
 # API facade: expect 401, then 200
-curl -k --resolve api.ontoforge.localhost:443:127.0.0.1 -o /dev/null -w '%{http_code}\n' https://api.ontoforge.localhost/api/ontologies
-curl -k --resolve api.ontoforge.localhost:443:127.0.0.1 -o /dev/null -w '%{http_code}\n' \
+curl -k -o /dev/null -w '%{http_code}\n' https://api.ontoforge.localhost/api/ontologies
+curl -k -o /dev/null -w '%{http_code}\n' \
      -H 'Authorization: Bearer local-testing-token-replace-me' https://api.ontoforge.localhost/api/ontologies
 ```
 
-`--resolve` is needed because `curl` does not map `*.localhost` to
-`127.0.0.1` the way browsers do. `-k` skips certificate verification for the
-local CA; use `--cacert .certs/caddy-root.crt` instead once the smoke test
-has exported it.
+`*.localhost` names resolve to the loopback address on macOS, on Linux with
+systemd-resolved, and in browsers; on other systems add
+`--resolve api.ontoforge.localhost:443:127.0.0.1` (the smoke test always
+does). `-k` skips certificate verification for the local CA; use
+`--cacert .certs/caddy-root.crt` instead once the smoke test has exported it.

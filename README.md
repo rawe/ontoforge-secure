@@ -30,6 +30,7 @@ Internet
 | `.env.example` | Stack configuration template (hosts, TLS, credentials, version) |
 | `env/` | OntoForge feature settings (embeddings, AI) |
 | `scripts/` | Password hash, token generator, smoke test |
+| `mcp.example.json` | MCP client configuration for Claude Code, pointing at the API facade |
 | `k8s/` | Kubernetes reference manifests |
 | `docs/` | Documentation, see below |
 
@@ -58,6 +59,27 @@ settings in `env/ontoforge.local.env`. See
 
 Run `scripts/smoke-test.sh` for a quick check that both facades work
 ([docs/testing.md](docs/testing.md)).
+
+## Using it with an MCP client
+
+`mcp.example.json` configures Claude Code with OntoForge's two MCP servers
+through the API facade. The token is read from the environment, so the file
+holds no secret. Claude Code runs on Node, which must trust Caddy's local CA
+for the local hosts, hence the second variable.
+
+```bash
+mkdir -p .certs && docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt .certs/caddy-root.crt
+export ONTOFORGE_API_TOKEN=local-testing-token-replace-me
+export NODE_EXTRA_CA_CERTS="$PWD/.certs/caddy-root.crt"
+claude --mcp-config mcp.example.json
+```
+
+Then ask Claude to call `ensure_ontology` on the modeling server; that creates
+the `poc` ontology the file points at. The runtime server additionally needs
+a lens named `all` in that ontology. Ontology, lens and host are overridable
+with `ONTOFORGE_ONTOLOGY`, `ONTOFORGE_LENS` and `ONTOFORGE_API_URL`; against
+a real deployment drop the CA variable and set the URL to the public API
+host.
 
 ## Documentation
 
