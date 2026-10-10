@@ -83,7 +83,7 @@ services:
       PUBLIC_URL: http://${API_HOST:-api.ontoforge.localhost}
     networks:
       - internal
-      # Outbound only: embedding and AI providers (Ollama on the host, OpenAI).
+      # Outbound only: embedding and AI providers (Ollama on the host, cloud APIs).
       - egress
     depends_on:
       postgres:

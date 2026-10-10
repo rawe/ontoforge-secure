@@ -74,9 +74,15 @@ soon as an API key is involved.
 
 | Feature | Variables | Notes |
 |---|---|---|
-| Semantic search | `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_BASE_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_DIMENSIONS` | Provider `ollama` or `openai`. Changing model or dimensions on an existing database needs a rebuild of the search data, see the OntoForge README. |
-| AI features | `AI_PROVIDER`, `AI_MODEL`, `AI_BASE_URL`, `AI_API_KEY`, `AI_REASONING_EFFORT` | Provider `ollama` or `openai`. The model must support tool calling. |
+| Semantic search | `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_BASE_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_DIMENSIONS`, `EMBEDDING_BATCH_SIZE`, `EMBEDDING_CONCURRENCY` | Provider `ollama` or `openai`. After changing model or dimensions on an existing database, rebuild the search data once per ontology, see the OntoForge README. |
+| AI features | `AI_PROVIDER`, `AI_MODEL`, `AI_BASE_URL`, `AI_API_KEY`, `AI_REASONING_EFFORT` | Provider `ollama`, `openai` or `anthropic`. `AI_MODEL` is required with a provider, and the model must support tool calling. |
 | Documents | `DOCUMENT_CHUNK_SIZE`, `DOCUMENT_CHUNK_OVERLAP` | Chunking for document properties |
+
+Base URLs are written as the provider documents them: the host for `ollama`
+and `anthropic`, the API base including its version for `openai`
+(`https://api.openai.com/v1`, `https://openrouter.ai/api/v1`). A base URL in
+the wrong form stops the server at startup, and the log names the corrected
+value.
 
 Ollama on the host machine is reached from the containers as
 `http://host.docker.internal:11434`.
