@@ -76,15 +76,16 @@ way instead of `.env`.
 Then ask Claude to call `ensure_ontology` on the modeling server; that creates
 the `poc` ontology the file points at. The runtime server additionally needs
 a lens named `all` in that ontology. Ontology, lens and host are overridable
-with `ONTOFORGE_ONTOLOGY`, `ONTOFORGE_LENS` and `ONTOFORGE_API_URL`; against
+with `ONTOFORGE_ONTOLOGY`, `ONTOFORGE_LENS` and `ONTOFORGE_BASE_URL`; against
 a real deployment set the URL to the public API host.
 
 ## Claude Code plugin
 
 The [OntoForge plugin](https://github.com/rawe/ontoforge/tree/main/plugins/ontoforge)
-supports Bearer token authentication: its scripts, its MCP configuration and the
-applications it helps build send the token when `ONTOFORGE_API_TOKEN` is set. Add its
-marketplace once, then install it in `/plugin`:
+connects to this stack like to any remote server: set `ONTOFORGE_BASE_URL` to the API
+host and `ONTOFORGE_API_TOKEN` to the token, and its scripts, its MCP configuration and
+the applications it helps build use both. Add its marketplace once, then install it in
+`/plugin`:
 
 ```text
 /plugin marketplace add rawe/ontoforge
