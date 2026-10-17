@@ -33,7 +33,6 @@ Ingress (TLS)
 | `scripts/` | Password hash, token generator, smoke test |
 | `mcp.example.json` | MCP client configuration for Claude Code, pointing at the API facade |
 | `k8s/` | Kubernetes reference manifests |
-| `.claude-plugin/`, `plugins/` | Claude Code plugin marketplace, see below |
 | `docs/` | Documentation, see below |
 
 ## Getting started
@@ -77,17 +76,19 @@ way instead of `.env`.
 Then ask Claude to call `ensure_ontology` on the modeling server; that creates
 the `poc` ontology the file points at. The runtime server additionally needs
 a lens named `all` in that ontology. Ontology, lens and host are overridable
-with `ONTOFORGE_ONTOLOGY`, `ONTOFORGE_LENS` and `ONTOFORGE_API_URL`; against
+with `ONTOFORGE_ONTOLOGY`, `ONTOFORGE_LENS` and `ONTOFORGE_BASE_URL`; against
 a real deployment set the URL to the public API host.
 
-## Claude Code plugin marketplace
+## Claude Code plugin
 
-This repository is also a Claude Code plugin marketplace. Its plugins let
-Claude work with an OntoForge behind a gateway like this one, where every API
-call needs the Bearer token. Add it once, then choose plugins in `/plugin`:
+The [OntoForge plugin](https://github.com/rawe/ontoforge/tree/main/plugins/ontoforge)
+connects to this stack like to any remote server: set `ONTOFORGE_BASE_URL` to the API
+host and `ONTOFORGE_API_TOKEN` to the token, and its scripts, its MCP configuration and
+the applications it helps build use both. Add its marketplace once, then install it in
+`/plugin`:
 
 ```text
-/plugin marketplace add rawe/ontoforge-secure
+/plugin marketplace add rawe/ontoforge
 ```
 
 ## Documentation
